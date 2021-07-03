@@ -1,4 +1,5 @@
 import pygame as pg
+from pygame import mouse
 from pygame.locals import *
 
 pg.init()
@@ -14,6 +15,8 @@ blue = (0, 0, 255)
 purple = (104, 0, 255)
 brown = (63, 49, 41)
 grid = (40, 40, 40)
+circle_color = (200, 200, 200)
+steel_color = (193, 83, 0)
 
 class Ground:
     def __init__(self, size, left, color):
@@ -31,10 +34,12 @@ class Part:
         self.start_point = start_point
         self.end_point = end_point
 
-        
-
 class Window:
     screenSize = (900,900)
+    gridSize = 50
+    snap_to_grid = False
+    snap = True
+    line_color = black
 
     def __init__(self):
         self.width = self.screenSize[0]
@@ -53,53 +58,52 @@ class Window:
         self.snap_parts = True
 
     def draw_window(self):
+        for c in range(100, 800, self.gridSize):
+            for r in range(100, 600, self.gridSize):
+                pg.draw.rect(self.screen, grid, (c, r, self.gridSize, self.gridSize), 1)
+
         for part in self.drawn_parts:
-            pg.draw.line(self.screen, part.color, part.start_point, part.end_point, 4)
+            pg.draw.line(self.screen, part.color, part.start_point, part.end_point, 7)
 
         for ground in self.ground_list:
             pg.draw.rect(self.screen, ground.color, ground.rect)
 
 
+        myfont = pg.font.SysFont('couriernew', 20)
+        steel_text = myfont.render('Steel', True, black)
+        road_text = myfont.render('Road', True, black)
+        self.screen.blit(steel_text,(0, 0))
+        self.screen.blit(road_text,(100, 0))
+
+
     def draw_line(self):
         if self.drawing:
-            pg.draw.line(self.screen, black, self.start_coords, self.current_mouse_pos, 4)
+            pg.draw.line(self.screen, self.line_color, self.start_coords, self.current_mouse_pos, 7)
+            if self.snap:
+                self.snap_end_to_grid()
+        mouse = self.current_mouse_pos
 
-            self.snap_end_to_ground()
+        for r in range(100, 800 + self.gridSize, 25):
+            for c in range(0, 600 + self.gridSize, 25):
+                if mouse[0] <= r + 10 and mouse[0] >= r - 10 and mouse[1] <= c + 10 and mouse[1] >= c - 10:
+                    pg.draw.circle(self.screen, circle_color, (r, c), 5)
+                    pg.draw.circle(self.screen, black, (r, c), 5, 1)
+                    if self.snap_parts and not self.drawing:
+                        self.start_coords = (r, c)
+                    self.snap_to_grid = True
 
-        for ground in self.ground_list:
-            if ground.color == green:
-                mouse = self.current_mouse_pos
-                rect = ground.rect
-
-                if ground.rect.left > 450:
-                    if mouse[0] <= rect.left + 10 and mouse[0] >= rect.left - 10 and mouse[1] <= rect.bottom + 10 and mouse[1] >= rect.top - 10:
-                        pg.draw.circle(self.screen, grid, rect.topleft, 5)
-                        self.ground_snapped = ground
-                        if self.snap_parts and not self.drawing:
-                            self.start_coords = rect.topleft
-                else:
-                    if mouse[0] <= rect.right + 10 and mouse[0] >= rect.right - 10 and mouse[1] <= rect.bottom + 10 and mouse[1] >= rect.top - 10:
-                        pg.draw.circle(self.screen, grid, rect.topright, 5)
-                        self.ground_snapped = ground
-                        if self.snap_parts and not self.drawing:
-                            self.start_coords = rect.topright
-
-    def snap_end_to_ground(self):
-        for ground in self.ground_list:
-            if ground.color == green:
-                mouse = self.current_mouse_pos
-                rect = ground.rect
-                if ground != self.ground_snapped:
-                    if ground.rect.left > 450:
-                        if mouse[0] <= rect.left + 15 and mouse[0] >= rect.left - 15 and mouse[1] <= rect.bottom + 15 and mouse[1] >= rect.top - 15:
-                            self.end_pos = ground.rect.topleft
-                    else:
-                        if mouse[0] <= rect.right + 15 and mouse[0] >= rect.right - 15 and mouse[1] <= rect.bottom + 15 and mouse[1] >= rect.top - 15:
-                            self.end_pos = ground.rect.topright
-                    
-
-    def snap_to_part(self):
-        pass
+    def snap_end_to_grid(self):
+        mouse = self.current_mouse_pos
+        for r in range(100, 800 + self.gridSize, 25):
+            for c in range(0, 600 + self.gridSize, 25):
+                if mouse[0] <= r + 10 and mouse[0] >= r - 10 and mouse[1] <= c + 10 and mouse[1] >= c - 10:
+                    self.end_pos = (r, c)
+    
+    def check_button_pressed(self):
+        if self.current_mouse_pos[0] < 100:
+            self.line_color = steel_color
+        elif self.current_mouse_pos[0] < 200 and self.current_mouse_pos[0] > 100:
+            self.line_color = black
 
     def gameLoop(self):
         self.start_game()
@@ -112,19 +116,25 @@ class Window:
                 if event.type == QUIT:
                     pg.quit()
                 if event.type == MOUSEBUTTONDOWN:
-                    if not self.snap_parts:
-                        self.start_coords = pg.mouse.get_pos()
-                    self.end_pos = 0
-                    self.drawing = True
+                    if self.current_mouse_pos[1] < 100:
+                        self.check_button_pressed()
+                    else:
+                        if not self.snap_parts:
+                            self.start_coords = self.current_mouse_pos
+                        self.end_pos = 0
+                        self.drawing = True
                 if event.type == MOUSEBUTTONUP:
-                    self.drawing = False
-                    if self.end_pos == 0:
-                        self.end_pos = self.current_mouse_pos
-                    self.drawn_parts.append(Part('Road', self.start_coords, self.end_pos, black))
+                    if self.current_mouse_pos[1] < 100:
+                        pass
+                    else:
+                        self.drawing = False
+                        if self.end_pos == 0:
+                            self.end_pos = self.current_mouse_pos
+                        self.drawn_parts.append(Part('Road', self.start_coords, self.end_pos, self.line_color))
                     
             
-            
-            self.draw_line()
+            if self.current_mouse_pos[1] > 100:
+                self.draw_line()
 
             
 
